@@ -5,7 +5,7 @@ import sys
 import uuid
 import time 
 
-# addresses
+#addresses
 PLAYER_IP = ''
 PLAYER_PORT = 0
 CROUPIER_IP = ''
@@ -14,41 +14,40 @@ COUNTER_IP = ''
 COUNTER_PORT = 0
 INITIAL_CAPITAL = 0
 
-# global variables
+#global variables
 player_id = ""
 nickname = ""
 player_hand = []
 player_capital = INITIAL_CAPITAL
 current_bet = 0
 game_in_progress = False
-dealer_up_card = None # Stores the dealer's visible card
+dealer_up_card = None #Stores the dealer's visible card
 recommended_action = None
 player_turn_active = False
 is_betting_phase = True
 
-# Socket
-sock = None # Will be initialized in __main__
+#Socket
+sock = None #Will be initialized in __main__
 
-# --- Card class (from SpielerAndi) ---
 class Card:
     def __init__(self, suit, rank):
-        # Suits and ranks should match what the Croupier and Counter expect
-        # Assuming suits are 'S', 'C', 'H', 'D' and ranks are '2'-'10', 'J', 'Q', 'K', 'A'
-        if suit not in ['S', 'C', 'H', 'D', 'Kreuz', 'Pik', 'Herz', 'Karo']: # Allow German suits for initial compatibility
+        #Suits and ranks should match what the Croupier and Counter expect
+        #Assuming suits are 'S', 'C', 'H', 'D' and ranks are '2'-'10', 'J', 'Q', 'K', 'A'
+        if suit not in ['S', 'C', 'H', 'D', 'Kreuz', 'Pik', 'Herz', 'Karo']: #Allow German suits for initial compatibility
             raise ValueError(f"Ungültiger Kartentyp (Suit): {suit}. Muss 'S', 'C', 'H', 'D' oder Deutsch sein.")
-        if rank not in ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A', 'Bube', 'Dame', 'König', 'Ass']: # Allow German ranks
+        if rank not in ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A', 'Bube', 'Dame', 'König', 'Ass']: #Allow German ranks
             raise ValueError(f"Ungültiger Kartenrang (Rank): {rank}.")
 
         self.suit = self._map_suit_to_short(suit)
         self.rank = self._map_rank_to_short(rank)
 
     def _map_suit_to_short(self, suit):
-        # Maps German suit names to single letters if necessary
+        #Maps German suit names to single letters if necessary
         mapping = {'Kreuz': 'C', 'Pik': 'S', 'Herz': 'H', 'Karo': 'D'}
         return mapping.get(suit, suit)
 
     def _map_rank_to_short(self, rank):
-        # Maps German rank names to single letters/numbers if necessary
+        #Maps German rank names to single letters/numbers if necessary
         mapping = {'Bube': 'J', 'Dame': 'Q', 'König': 'K', 'Ass': 'A'}
         return mapping.get(rank, rank)
 
@@ -72,26 +71,25 @@ class Card:
 def _card_from_str(card_str):
     if card_str is None or card_str == "HIDDEN":
         return None
-    # Assuming card_str format is "SUITRANK" e.g., "S10", "HA"
+    #Assuming card_str format is "SUITRANK" e.g., "S10", "HA"
     suit = card_str[0]
     rank = card_str[1:]
     return Card(suit, rank)
 
 def _card_from_dict(card_dict):
-    # Converts original Spieler.py dict format to Card object
     if not isinstance(card_dict, dict) or 'suit' not in card_dict or 'rank' not in card_dict:
-        return None # Or raise an error
+        return None #Or raise an error
     return Card(card_dict['suit'], card_dict['rank'])
 
 
-# Helpful functions
+#Helpful functions
 
-# calculate the value based on the cards
+#calculate the value based on the cards
 def calculate_hand_value(hand):
     value = 0
     num_aces = 0
     for card in hand:
-        if card is None: # Handle potential HIDDEN cards or None
+        if card is None: #Handle potential HIDDEN cards or None
             continue
         if card.rank == 'A':
             num_aces += 1
@@ -99,13 +97,13 @@ def calculate_hand_value(hand):
         else:
             value += card.get_value()
     
-    # correction for aces if value is above 21
+    #correction for aces if value is above 21
     while value > 21 and num_aces > 0:
         value -= 10
         num_aces -= 1
     return value
 
-# General function to send UDP messages
+#General function to send UDP messages
 def _send_udp_message(target_ip, target_port, message_dict):
     global sock
     try:
@@ -115,7 +113,7 @@ def _send_udp_message(target_ip, target_port, message_dict):
     except Exception as e:
         print(f"Fehler beim Senden der UDP-Nachricht an {target_ip}:{target_port}: {e}")
 
-# requests a recommendation from counter
+#requests a recommendation from counter
 def request_recommendation_from_counter():
     global recommended_action
 
@@ -133,7 +131,7 @@ def request_recommendation_from_counter():
     }
     _send_udp_message(COUNTER_IP, COUNTER_PORT, recommendation_request_message)
 
-# calculates the optimal bet amount
+#calculates the optimal bet amount
 def determine_optimal_bet():
     global player_capital
     if player_capital <= 0:
@@ -145,7 +143,7 @@ def determine_optimal_bet():
     return bet_amount
 
 
-# Functions handling incoming messages and game flow
+#Functions handling incoming messages and game flow
 def _handle_message(message, sender_addr):
     global player_hand, player_capital, current_bet, game_in_progress, dealer_up_card, recommended_action, player_turn_active, is_betting_phase, nickname
 
@@ -155,10 +153,10 @@ def _handle_message(message, sender_addr):
     print(f"<- Received from {sender_addr[0]}:{sender_addr[1]}: {msg_type} {payload}")
 
     if msg_type == "deal_cards":
-        # This is the start of a new round, equivalent to GAME_START
-        # Ensure it's for this player
+        #This is the start of a new round, equivalent to GAME_START
+        #Ensure it's for this player
         if payload.get("player_id") == player_id:
-            # Convert received card strings to Card objects
+            #Convert received card strings to Card objects
             player_hand = [_card_from_str(s) for s in payload.get("player_hand", [])]
             dealer_up_card = _card_from_str(payload.get("dealer_up_card"))
             current_bet = payload.get("bet_amount", current_bet) #Croupier might confirm/adjust bet
@@ -172,7 +170,7 @@ def _handle_message(message, sender_addr):
             print(f"Dein Einsatz: {current_bet}")
             print(f"Dein Kapital: {player_capital}")
             
-            # If no blackjack right at the beginning, wait for YOUR_TURN (via game_update)
+            #If no blackjack right at the beginning, wait for YOUR_TURN (via game_update)
             if calculate_hand_value(player_hand) == 21 and len(player_hand) == 2:
                 print("BLACKJACK! Warte auf Rundenergebnis.")
             elif calculate_hand_value(player_hand) > 21:
@@ -180,7 +178,7 @@ def _handle_message(message, sender_addr):
 
 
     elif msg_type == "game_update":
-        # This message signals whose turn it is and provides updated hands
+        #This message signals whose turn it is and provides updated hands
         if payload.get("player_id") == player_id:
             all_player_hands_str = payload.get("all_player_hands", [])
             if all_player_hands_str and all_player_hands_str[0]:
@@ -256,7 +254,7 @@ def _handle_message(message, sender_addr):
             print(f"--- Spiel beendet. Aktuelles Kapital: {player_capital} ---\n")
 
     elif msg_type == "round_ended":
-        # This message indicates the end of a round and readiness for a new one.
+        #This message indicates the end of a round and readiness for a new one.
         is_betting_phase = True
         game_in_progress = False
         player_turn_active = False
@@ -274,8 +272,8 @@ def _handle_message(message, sender_addr):
     elif msg_type == "reject_bet":
         print(f"Croupier hat den Einsatz abgelehnt: {payload.get('reason')}")
         game_in_progress = False
-        is_betting_phase = True # Allow placing another bet
-        player_capital += current_bet # Return the rejected bet to capital
+        is_betting_phase = True #Allow placing another bet
+        player_capital += current_bet #Return the rejected bet to capital
         current_bet = 0
 
 
@@ -301,7 +299,7 @@ def place_bet(amount):
     }
     _send_udp_message(CROUPIER_IP, CROUPIER_PORT, bet_message)
     print(f"{nickname} platziert Einsatz von {amount}. Warte auf Start der Runde...")
-    is_betting_phase = False # Once bet is placed, not in betting phase anymore
+    is_betting_phase = False #Once bet is placed, not in betting phase anymore
 
 
 def send_player_action_to_croupier(action):
@@ -314,7 +312,7 @@ def send_player_action_to_croupier(action):
         }
     }
     _send_udp_message(CROUPIER_IP, CROUPIER_PORT, action_message)
-    player_turn_active = False # Player's turn ends after sending an action
+    player_turn_active = False #Player's turn ends after sending an action
 
 
 def request_statistics():
@@ -341,7 +339,7 @@ def handle_your_turn_input_prompt(rec_action=None):
         print(f"Empfohlene Aktion vom Kartenzähler: {rec_action}")
     
     action = None
-    if rec_action: # If a recommendation is available, suggest using AUTO or the recommendation directly
+    if rec_action: #If a recommendation is available, suggest using AUTO or the recommendation directly
         user_choice = input(f"Wähle eine Aktion (H/S/D/P/SURRENDER/AUTO). Empfehlung ist '{rec_action}': ").upper()
         if user_choice == "AUTO":
             action = rec_action
@@ -360,7 +358,7 @@ def handle_your_turn_input_prompt(rec_action=None):
             send_player_action_to_croupier("DOUBLE_DOWN")
         else:
             print("Double Down ist nur mit 2 Karten und ausreichend Kapital möglich.")
-            handle_your_turn_input_prompt(rec_action) # Prompt again
+            handle_your_turn_input_prompt(rec_action) #Prompt again
     elif action == "P":
         #Check conditions for Split
         if len(player_hand) == 2 and player_hand[0].rank == player_hand[1].rank and player_capital >= current_bet * 2:
@@ -377,15 +375,15 @@ def handle_your_turn_input_prompt(rec_action=None):
     recommended_action = None
 
 
-# Main Program
+#Main Program
 def main_player_loop():
     global player_capital, current_bet, game_in_progress, player_id, nickname, sock, is_betting_phase, player_turn_active, recommended_action
 
-    # Generate a unique player ID and a default nickname
+    #Generate a unique player ID and a default nickname
     player_id = str(uuid.uuid4())
     nickname = f"Spieler-{player_id[:4]}"
 
-    # Prompt for a nickname
+    #Prompt for a nickname
     user_nickname = input(f"Gib einen Nickname für diesen Spieler ein (default: {nickname}): ").strip()
     if user_nickname:
         nickname = user_nickname
@@ -410,8 +408,8 @@ def main_player_loop():
     print("--------------------")
     print(f"\nBeginne, indem du 'bet <Menge>' eingibst, {nickname}.")
 
-    # Start a separate thread for listening to incoming messages
-    # This prevents blocking the main thread while waiting for user input
+    #Start a separate thread for listening to incoming messages
+    #This prevents blocking the main thread while waiting for user input
     def listen_thread():
         while True:
             try:
@@ -469,7 +467,7 @@ def main_player_loop():
             elif player_turn_active and user_input in ['H', 'S', 'D', 'P', 'SURRENDER']:
                 print(f"Manuelle Aktion gesendet für {nickname}: {user_input}")
                 send_player_action_to_croupier(user_input)
-                recommended_action = None # Clear recommendation after manual action
+                recommended_action = None #Clear recommendation after manual action
 
             elif player_turn_active and user_input == 'AUTO':
                 if recommended_action:
@@ -482,9 +480,9 @@ def main_player_loop():
             else:
                 print("Ungültige Eingabe oder nicht dein Zug. Bitte beachte die Hilfe oben.")
 
-            time.sleep(0.1) # Small sleep to prevent busy-waiting too much
+            time.sleep(0.1) #Small sleep to prevent busy-waiting too much
 
-        except EOFError: # Handles Ctrl+D or similar
+        except EOFError: #Handles Ctrl+D or similar
             print("\nEingabe beendet. Spieler wird heruntergefahren.")
             break
         except KeyboardInterrupt:
@@ -513,7 +511,7 @@ if __name__ == "__main__":
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         sock.bind((PLAYER_IP, PLAYER_PORT))
-        sock.settimeout(1) # Short timeout for the recvfrom in the listener thread
+        sock.settimeout(1) #Short timeout for the recvfrom in the listener thread
     except OSError as e:
         print(f"Fehler: Spieler konnte nicht an {PLAYER_IP}:{PLAYER_PORT} binden. {e}")
         print("Bitte stelle sicher, dass dieser Port nicht bereits von einer anderen Instanz verwendet wird.")
