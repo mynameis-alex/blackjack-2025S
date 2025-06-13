@@ -153,8 +153,7 @@ def _handle_message(message, sender_addr):
     print(f"<- Received from {sender_addr[0]}:{sender_addr[1]}: {msg_type} {payload}")
 
     if msg_type == "deal_cards":
-        #This is the start of a new round, equivalent to GAME_START
-        #Ensure it's for this player
+        #This is the start of a new round, Ensure it's for this player
         if payload.get("player_id") == player_id:
             #Convert received card strings to Card objects
             player_hand = [_card_from_str(s) for s in payload.get("player_hand", [])]
